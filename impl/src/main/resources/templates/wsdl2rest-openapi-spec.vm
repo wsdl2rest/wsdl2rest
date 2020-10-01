@@ -1,0 +1,112 @@
+{
+	"openapi": "3.0.1",
+	
+	"info": {
+		"title": "$serviceClassName",
+		"contact": {
+			"email": "acemicro@cloudbrige.net"
+		},    
+		"version": "1.0.0"
+	},
+   
+	"servers": [{
+		"url": "$jaxrsAddress"
+    }],
+    
+	"paths": {
+#foreach( $method in $allMethods )
+#if ( $method.httpMethod.toLowerCase() == 'post' || $method.httpMethod.toLowerCase() == 'put' )
+
+		"/$method.methodName": {
+			"$method.httpMethod.toLowerCase()": {
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+#set ( $schema = $method.wrappedParams[0].paramType )
+#set ( $schema = $schema.substring($schema.lastIndexOf('.') + 1 ) )							
+								"$ref": "#/components/schemas/$schema"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "successful operation"
+					},
+					"405": {
+						"description": "Validation exception"
+					}
+				}
+			}
+		},
+#else
+#if (!$method.wrappedReturnType.endsWith('[]'))
+
+		"/$method.methodName{id}": {
+			"$method.httpMethod.toLowerCase()": {
+				"parameters": [{
+					"name": "id",
+					"in": "path",
+					"required": true,
+					"schema": {
+	              		"type": "integer"
+              		}
+          		}],
+				"responses": {
+					"200": {
+						"description": "successful operation",
+						"content": {
+							"application/json": {
+								"schema": {
+#set ( $schema = $method.wrappedReturnType )
+#set ( $schema = $schema.substring($schema.lastIndexOf('.') + 1 ) )								
+									"$ref": "#/components/schemas/$schema"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Invalid argument supplied"
+					},
+					"404": {
+						"description": "Record not found"
+					}
+				}
+			}
+		},
+#else
+
+		"/$method.methodName": {
+			"$method.httpMethod.toLowerCase()": {
+				"responses": {
+					"200": {
+						"description": "successful operation"
+					},
+				}
+			}
+		},
+#end
+#end
+#end
+	},
+
+	"components": {
+		"schemas": {
+#foreach( $method in $allMethods )
+#if ( $method.httpMethod.toLowerCase() == 'put' )
+#set ( $schema = $method.wrappedParams[0].paramType )
+#set ( $schema = $schema.substring($schema.lastIndexOf('.') + 1 ) )
+			"$schema": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "integer"
+					},
+				},
+			},
+#end
+#end			
+		}
+	}
+}
