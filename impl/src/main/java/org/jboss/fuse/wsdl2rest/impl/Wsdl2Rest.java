@@ -8,13 +8,18 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cxf.tools.common.model.JavaModel;
+import org.jboss.fuse.wsdl2rest.ClassGenerator;
 import org.jboss.fuse.wsdl2rest.EndpointInfo;
 import org.jboss.fuse.wsdl2rest.ResourceMapper;
 import org.jboss.fuse.wsdl2rest.WSDLProcessor;
 import org.jboss.fuse.wsdl2rest.impl.codegen.BlueprintContextGenerator;
 import org.jboss.fuse.wsdl2rest.impl.codegen.CamelContextGenerator;
+import org.jboss.fuse.wsdl2rest.impl.codegen.JavaRestClassGenerator;
 import org.jboss.fuse.wsdl2rest.impl.codegen.JavaTypeGenerator;
+import org.jboss.fuse.wsdl2rest.impl.codegen.OpenAPISpecGenerator;
+import org.jboss.fuse.wsdl2rest.impl.codegen.RestSpecGenerator;
 import org.jboss.fuse.wsdl2rest.impl.codegen.SpringContextGenerator;
+import org.jboss.fuse.wsdl2rest.impl.codegen.SpringRestClassGenerator;
 import org.jboss.fuse.wsdl2rest.util.IllegalArgumentAssertion;
 
 public class Wsdl2Rest {
@@ -26,6 +31,7 @@ public class Wsdl2Rest {
     private URL jaxwsAddress;
     private Path blueprintContext;
     private Path camelContext;
+    private Path openAPISpec;
     private Path javaOut;
     private boolean noVelocityLog = false;
     
@@ -56,6 +62,13 @@ public class Wsdl2Rest {
      */
     public void setCamelContext(Path camelContext) {
         this.camelContext = camelContext;
+    }
+    
+    /**
+     * Defaults to [outpath]/camel/wsdl2rest-openapi-spec.json
+     */
+    public void setOpenAPISpec(Path openAPISpec) {
+        this.openAPISpec = openAPISpec;
     }
 
     /**
@@ -91,6 +104,13 @@ public class Wsdl2Rest {
         JavaTypeGenerator typeGen = new JavaTypeGenerator(effectiveJavaOut(), wsdlUrl);
         JavaModel javaModel = typeGen.execute();
         
+        ClassGenerator javaRestGen = new JavaRestClassGenerator(effectiveJavaOut());
+        javaRestGen.generateClasses(clazzDefs);
+        
+        ClassGenerator springRestGen = new SpringRestClassGenerator(effectiveJavaOut());
+        springRestGen.generateClasses(clazzDefs);
+
+
         if (blueprintContext != null) {
             Path contextPath = effectiveCamelContext(blueprintContext, Paths.get("wsdl2rest-blueprint-context.xml"));
             CamelContextGenerator camelGen = new BlueprintContextGenerator(contextPath);
@@ -100,13 +120,21 @@ public class Wsdl2Rest {
             camelGen.process(clazzDefs, javaModel);
         }
         
-        if (camelContext != null || blueprintContext == null) {
+        if (camelContext != null) {
             Path contextPath = effectiveCamelContext(camelContext, Paths.get("wsdl2rest-camel-context.xml"));
             CamelContextGenerator camelGen = new SpringContextGenerator(contextPath);
             camelGen.setJaxrsAddress(jaxrsAddress);
             camelGen.setJaxwsAddress(jaxwsAddress);
             camelGen.setNoVelocityLog(noVelocityLog);
             camelGen.process(clazzDefs, javaModel);
+        }
+        
+        if (openAPISpec != null) {
+            Path specPath = effectiveSpec(openAPISpec, Paths.get("wsdl2rest-openapi-spec.json"));
+            RestSpecGenerator specGen = new OpenAPISpecGenerator(specPath);
+            specGen.setJaxrsAddress(jaxrsAddress);
+            specGen.setNoVelocityLog(noVelocityLog);
+            specGen.process(clazzDefs, javaModel);
         }
         
         return Collections.unmodifiableList(clazzDefs);
@@ -132,4 +160,18 @@ public class Wsdl2Rest {
         }
         return resultPath.isAbsolute() ? resultPath : outpath.resolve(resultPath); 
     }
+    
+    private Path effectiveSpec(Path givenPath, Path defaultPath) {
+        Path resultPath = givenPath;
+        if (resultPath == null) {
+            resultPath = defaultPath;
+        }
+        List<Path> pathElements = new ArrayList<>();
+        resultPath.iterator().forEachRemaining(pathElements::add);
+        if (pathElements.size() < 2) {
+            resultPath = Paths.get("spec", resultPath.toString());
+        }
+        return resultPath.isAbsolute() ? resultPath : outpath.resolve(resultPath); 
+    }
+    
 }

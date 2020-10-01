@@ -37,7 +37,7 @@ import org.junit.Test;
 public class GenerateDocLitTest {
 
     static final String WSDL_LOCATION = "../jaxws/src/main/resources/doclit/Address.wsdl";
-    static final String OUTPUT_PATH = "target/generated-wsdl2rest";
+    static final String OUTPUT_PATH = "target/generated-wsdl2rest-doc";
 
     @Test
     public void testWSDLProcessor() throws Exception {
@@ -59,6 +59,7 @@ public class GenerateDocLitTest {
         
         Wsdl2Rest tool = new Wsdl2Rest(wsdlFile.toURI().toURL(), outpath);
         tool.setCamelContext(Paths.get("doclit-camel-context.xml"));
+        tool.setOpenAPISpec(Paths.get("doclit-openapi-spec.json"));
         tool.setJaxrsAddress(new URL("http://localhost:8083/myjaxrs"));
         tool.setJaxwsAddress(new URL("http://localhost:8080/doclit"));
 
@@ -69,12 +70,6 @@ public class GenerateDocLitTest {
         Assert.assertEquals("Address", clazzDef.getClassName());
 
         List<MethodInfo> methods = clazzDef.getMethods();
-        Assert.assertEquals(5, methods.size());
-        
-        ResourceMapper resMapper = new ResourceMapperImpl();
-        resMapper.assignResources(clazzDefs);
-
-        JavaTypeGenerator typeGen = new JavaTypeGenerator(outpath, wsdlFile.toURI().toURL());
-        typeGen.execute();
+        Assert.assertEquals(5, methods.size());        
     }
 }

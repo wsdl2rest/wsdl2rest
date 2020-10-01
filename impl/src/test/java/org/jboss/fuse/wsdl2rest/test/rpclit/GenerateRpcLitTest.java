@@ -34,7 +34,7 @@ import org.junit.Test;
 public class GenerateRpcLitTest {
 
     static final String WSDL_LOCATION = "../jaxws/src/main/resources/rpclit/Address.wsdl";
-    static final String OUTPUT_PATH = "target/generated-wsdl2rest";
+    static final String OUTPUT_PATH = "target/generated-wsdl2rest-rpc";
 
     @Test
     public void testGenerate() throws Exception {
@@ -44,6 +44,7 @@ public class GenerateRpcLitTest {
         
         Wsdl2Rest tool = new Wsdl2Rest(wsdlFile.toURI().toURL(), outpath);
         tool.setCamelContext(Paths.get("rpclit-camel-context.xml"));
+        tool.setOpenAPISpec(Paths.get("rpclit-openapi-spec.json"));
         tool.setJaxrsAddress(new URL("http://localhost:8083/myjaxrs"));
         tool.setJaxwsAddress(new URL("http://localhost:8080/rpclit"));
         
