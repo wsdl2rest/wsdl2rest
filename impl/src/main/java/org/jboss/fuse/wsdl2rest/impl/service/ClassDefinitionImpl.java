@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.jboss.fuse.wsdl2rest.EndpointInfo;
 import org.jboss.fuse.wsdl2rest.MethodInfo;
+import org.jboss.fuse.wsdl2rest.TypeInfo;
 
 public class ClassDefinitionImpl extends MetaInfoImpl implements EndpointInfo {
 
@@ -16,6 +17,7 @@ public class ClassDefinitionImpl extends MetaInfoImpl implements EndpointInfo {
     private List<String> imports;
     private String className;
     private Map<String, MethodInfo> methods = new LinkedHashMap<>();
+    private Map<String, TypeInfo> types = new LinkedHashMap<>();
 
     @Override
     public String getPackageName() {
@@ -58,6 +60,22 @@ public class ClassDefinitionImpl extends MetaInfoImpl implements EndpointInfo {
 
     public void addMethod(MethodInfo method) {
         methods.put(method.getMethodName(), method);
+    }
+    
+    @Override
+    public List<TypeInfo> getTypes() {
+        List<TypeInfo> result = new ArrayList<>(types.values());
+        result.sort(Comparator.comparing(TypeInfo::getTypeName));
+        return Collections.unmodifiableList(result);
+    }
+    
+    @Override
+    public TypeInfo getType(String type) {
+    	return types.get(type);
+    }
+    
+	public void addType(TypeInfo type) {
+		types.put(type.getTypeName(), type);
     }
     
     @Override

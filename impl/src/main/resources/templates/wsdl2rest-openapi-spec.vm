@@ -4,7 +4,7 @@
 	"info": {
 		"title": "$serviceClassName",
 		"contact": {
-			"email": "acemicro@cloudbrige.net"
+			"email": "wsdl2rest@github.io"
 		},    
 		"version": "1.0.0"
 	},
@@ -23,7 +23,7 @@
 					"content": {
 						"application/json": {
 							"schema": {
-#set ( $schema = $method.wrappedParams[0].paramType )
+#set ( $schema = $method.params[0].paramType )
 #set ( $schema = $schema.substring($schema.lastIndexOf('.') + 1 ) )							
 								"$ref": "#/components/schemas/$schema"
 							}
@@ -41,7 +41,7 @@
 			}
 		},
 #else
-#if (!$method.wrappedReturnType.endsWith('[]'))
+#if (!$method.returnType.endsWith('[]'))
 
 		"/$method.methodName{id}": {
 			"$method.httpMethod.toLowerCase()": {
@@ -59,7 +59,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-#set ( $schema = $method.wrappedReturnType )
+#set ( $schema = $method.returnType )
 #set ( $schema = $schema.substring($schema.lastIndexOf('.') + 1 ) )								
 									"$ref": "#/components/schemas/$schema"
 								}
@@ -93,19 +93,19 @@
 
 	"components": {
 		"schemas": {
-#foreach( $method in $allMethods )
-#if ( $method.httpMethod.toLowerCase() == 'put' )
-#set ( $schema = $method.wrappedParams[0].paramType )
-#set ( $schema = $schema.substring($schema.lastIndexOf('.') + 1 ) )
+#foreach( $type in $allTypes )
+#set ( $schema = $type.typeName )
+#set ( $schema = $schema.substring($schema.lastIndexOf('.') + 1 ) )								
 			"$schema": {
 				"type": "object",
 				"properties": {
-					"id": {
-						"type": "integer"
+#foreach( $element in $type.elements )				
+					"$element.elementName": {
+						"type": "$element.elementType"
 					},
+#end					
 				},
 			},
-#end
 #end			
 		}
 	}

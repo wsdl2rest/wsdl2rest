@@ -2,8 +2,10 @@ package org.jboss.fuse.wsdl2rest.impl.codegen;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.file.Path;
@@ -18,23 +20,39 @@ import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
+import org.jboss.fuse.wsdl2rest.ElementInfo;
 import org.jboss.fuse.wsdl2rest.EndpointInfo;
 import org.jboss.fuse.wsdl2rest.MethodInfo;
 import org.jboss.fuse.wsdl2rest.ParamInfo;
+import org.jboss.fuse.wsdl2rest.impl.service.ClassDefinitionImpl;
+import org.jboss.fuse.wsdl2rest.impl.service.ElementInfoImpl;
 import org.jboss.fuse.wsdl2rest.impl.service.MethodInfoImpl;
 import org.jboss.fuse.wsdl2rest.impl.service.ParamImpl;
+import org.jboss.fuse.wsdl2rest.impl.service.TypeInfoImpl;
 import org.jboss.fuse.wsdl2rest.util.IllegalArgumentAssertion;
 import org.jboss.fuse.wsdl2rest.util.IllegalStateAssertion;
 
+import com.github.javaparser.JavaParser;
+import com.github.javaparser.ParseException;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+
 public abstract class RestSpecGenerator {
 
+	private Path javaPath;
     private Path specPath;
     private URL jaxrsAddress;
     
     private boolean noVelocityLog = false;
 
-    RestSpecGenerator(Path specPath) {
+    RestSpecGenerator(Path javaPath, Path specPath) {
+    	this.javaPath = javaPath;
         this.specPath = specPath;
+    }
+    
+    protected String getElementTypeMapping(String xmlType) {
+    	return xmlType;
     }
 
     public void setJaxrsAddress(URL jaxrsAddress) {
@@ -75,7 +93,8 @@ public abstract class RestSpecGenerator {
             context.put("allMethods", epinfo.getMethods());
             context.put("id", new IDGenerator());
             
-            addTypeMapping(epinfo, javaModel);
+            addTypesMapping(epinfo, javaModel);
+            context.put("allTypes", epinfo.getTypes());
 
             File outfile = specPath.toFile();
             outfile.getParentFile().mkdirs();
@@ -88,13 +107,18 @@ public abstract class RestSpecGenerator {
 
     protected abstract String getTemplatePath();
 
-    private void addTypeMapping(EndpointInfo epinfo, JavaModel javaModel) {
+    private void addTypesMapping(EndpointInfo epinfo, JavaModel javaModel) {
         IllegalArgumentAssertion.assertTrue(javaModel.getInterfaces().size() == 1, "Multiple interfaces not supported");
         // the keys used have removed the underscores
         JavaInterface javaIntrf = javaModel.getInterfaces().get(epinfo.getClassName().replaceAll("_", ""));
+
         for (MethodInfo method : epinfo.getMethods()) {
-            if ("document".equals(method.getStyle())) {
-                JavaMethod javaMethod = getJavaMethod(javaIntrf, method.getMethodName());
+        	List<ParamInfo> params  = method.getParams();
+			for (ParamInfo pinfo : params) {
+				addTypeMapping(epinfo, pinfo);
+			}
+        	if ("document".equals(method.getStyle())) {
+        		JavaMethod javaMethod = getJavaMethod(javaIntrf, method.getMethodName());
                 List<ParamInfo> wrappedParams = new ArrayList<>();
                 for (JavaParameter javaParam : javaMethod.getParameters()) {
                     String paramName = javaParam.getName();
@@ -105,6 +129,31 @@ public abstract class RestSpecGenerator {
             }
         }
     }
+    
+    private void addTypeMapping(EndpointInfo epinfo, ParamInfo pinfo) {
+        String javaType = pinfo.getParamType();
+        if(epinfo.getType(javaType) != null) {
+        	return;
+        }
+        File javaFile = javaPath.resolve(javaType.replace('.', '/') + ".java").toFile();
+        if (javaFile.exists()) {
+			final TypeInfoImpl type = new TypeInfoImpl(pinfo.getParamType());
+			((ClassDefinitionImpl) epinfo).addType(type);
+            try (InputStream in = new FileInputStream(javaFile)) {
+                CompilationUnit cu = JavaParser.parse(in);
+                new VoidVisitorAdapter<Object>() {
+                	public void visit(FieldDeclaration field, Object arg) {
+						ElementInfo element = new ElementInfoImpl(getElementTypeMapping(field.getType().toString()), field.getVariables().get(0).toString());
+                		type.addElement(element);
+                		super.visit(field, arg);
+                	}
+                }.visit(cu, null);
+            } catch (ParseException | IOException ex) {
+                throw new IllegalStateException(ex);
+            }
+        }
+    }
+
 
     private String normalize(String typeName) {
         if (typeName.contains("List<") && typeName.endsWith(">")) {

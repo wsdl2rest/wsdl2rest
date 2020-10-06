@@ -101,14 +101,15 @@ public class Wsdl2Rest {
         ResourceMapper resMapper = new ResourceMapperImpl();
         resMapper.assignResources(clazzDefs);
 
-        JavaTypeGenerator typeGen = new JavaTypeGenerator(effectiveJavaOut(), wsdlUrl);
+        Path javaPath = effectiveJavaOut();
+        JavaTypeGenerator typeGen = new JavaTypeGenerator(javaPath, wsdlUrl);
         JavaModel javaModel = typeGen.execute();
         
-        ClassGenerator javaRestGen = new JavaRestClassGenerator(effectiveJavaOut());
-        javaRestGen.generateClasses(clazzDefs);
+        ClassGenerator classGen = new JavaRestClassGenerator(javaPath);
+        classGen.generateClasses(clazzDefs);
         
-        ClassGenerator springRestGen = new SpringRestClassGenerator(effectiveJavaOut());
-        springRestGen.generateClasses(clazzDefs);
+        classGen = new SpringRestClassGenerator(javaPath);
+        classGen.generateClasses(clazzDefs);
 
 
         if (blueprintContext != null) {
@@ -131,7 +132,7 @@ public class Wsdl2Rest {
         
         if (openAPISpec != null) {
             Path specPath = effectiveSpec(openAPISpec, Paths.get("wsdl2rest-openapi-spec.json"));
-            RestSpecGenerator specGen = new OpenAPISpecGenerator(specPath);
+            RestSpecGenerator specGen = new OpenAPISpecGenerator(javaPath, specPath);
             specGen.setJaxrsAddress(jaxrsAddress);
             specGen.setNoVelocityLog(noVelocityLog);
             specGen.process(clazzDefs, javaModel);
