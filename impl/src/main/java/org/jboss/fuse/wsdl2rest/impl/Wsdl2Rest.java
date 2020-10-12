@@ -33,12 +33,27 @@ public class Wsdl2Rest {
     private Path camelContext;
     private Path openAPISpec;
     private Path javaOut;
+    
+    private Path inpath;
+    private String sourceType;
+    
     private boolean noVelocityLog = false;
     
     public Wsdl2Rest(URL wsdlUrl, Path outpath) {
         IllegalArgumentAssertion.assertNotNull(wsdlUrl, "wsdlUrl");
         IllegalArgumentAssertion.assertNotNull(outpath, "outpath");
         this.wsdlUrl = wsdlUrl;
+        this.outpath = outpath;
+    }
+    
+    public Wsdl2Rest(URL wsdlUrl, Path inpath, String sourceType, Path outpath) {
+        IllegalArgumentAssertion.assertNotNull(wsdlUrl, "wsdlUrl");
+        IllegalArgumentAssertion.assertNotNull(inpath, "inpath");
+        IllegalArgumentAssertion.assertNotNull(sourceType, "sourceType");
+        IllegalArgumentAssertion.assertNotNull(outpath, "outpath");
+        this.wsdlUrl = wsdlUrl;
+        this.inpath = inpath;
+        this.sourceType = sourceType;
         this.outpath = outpath;
     }
 
@@ -105,10 +120,10 @@ public class Wsdl2Rest {
         JavaTypeGenerator typeGen = new JavaTypeGenerator(javaPath, wsdlUrl);
         JavaModel javaModel = typeGen.execute();
         
-        ClassGenerator classGen = new JavaRestClassGenerator(javaPath);
+        ClassGenerator classGen = new JavaRestClassGenerator(inpath, sourceType, javaPath);
         classGen.generateClasses(clazzDefs);
         
-        classGen = new SpringRestClassGenerator(javaPath);
+        classGen = new SpringRestClassGenerator(inpath, sourceType, javaPath);
         classGen.generateClasses(clazzDefs);
 
 

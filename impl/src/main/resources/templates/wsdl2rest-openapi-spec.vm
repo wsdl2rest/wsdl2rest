@@ -17,8 +17,10 @@
 #foreach( $method in $allMethods )
 #if ( $method.httpMethod.toLowerCase() == 'post' || $method.httpMethod.toLowerCase() == 'put' )
 
-		"/$method.methodName": {
+		"/$method.resources.get(0)": {
 			"$method.httpMethod.toLowerCase()": {
+				"description": "$method.methodName",
+				"operationId": "$method.methodName",
 				"requestBody": {
 					"content": {
 						"application/json": {
@@ -28,14 +30,20 @@
 								"$ref": "#/components/schemas/$schema"
 							}
 						}
-					}
+					},
+			        "description": "$method.methodName",
+        			"required": true
 				},
 				"responses": {
 					"200": {
-						"description": "successful operation"
-					},
-					"405": {
-						"description": "Validation exception"
+						"description": "successful operation",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/$schema"
+								}
+							}
+						}
 					}
 				}
 			}
@@ -43,11 +51,14 @@
 #else
 #if (!$method.returnType.endsWith('[]'))
 
-		"/$method.methodName{id}": {
+		"/$method.resources.get(0)/{id}": {
 			"$method.httpMethod.toLowerCase()": {
+				"description": "$method.methodName",
+				"operationId": "$method.methodName",
 				"parameters": [{
 					"name": "id",
 					"in": "path",
+			        "description": "$method.methodName",
 					"required": true,
 					"schema": {
 	              		"type": "integer"
@@ -65,20 +76,16 @@
 								}
 							}
 						}
-					},
-					"400": {
-						"description": "Invalid argument supplied"
-					},
-					"404": {
-						"description": "Record not found"
 					}
 				}
 			}
 		},
 #else
-
-		"/$method.methodName": {
+#*
+		"/$method.resources.get(0)": {
 			"$method.httpMethod.toLowerCase()": {
+				"description": "$method.methodName",
+				"operationId": "$method.methodName",
 				"responses": {
 					"200": {
 						"description": "successful operation"
@@ -86,6 +93,7 @@
 				}
 			}
 		},
+*#		
 #end
 #end
 #end
@@ -99,9 +107,15 @@
 			"$schema": {
 				"type": "object",
 				"properties": {
-#foreach( $element in $type.elements )				
+#foreach( $element in $type.elements )
 					"$element.elementName": {
-						"type": "$element.elementType"
+						"type": "$element.elementType",
+#if($element.elementType == 'integer')
+						"format": "int(10)"
+#end
+#if($element.elementType == 'string')
+						"format": "varchar(200)"
+#end
 					},
 #end					
 				},

@@ -40,9 +40,9 @@ import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 
 public abstract class RestSpecGenerator {
 
-	private Path javaPath;
-    private Path specPath;
-    private URL jaxrsAddress;
+	protected Path javaPath;
+    protected Path specPath;
+    protected URL jaxrsAddress;
     
     private boolean noVelocityLog = false;
 

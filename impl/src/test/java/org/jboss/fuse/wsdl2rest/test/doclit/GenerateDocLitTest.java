@@ -37,7 +37,7 @@ import org.junit.Test;
 public class GenerateDocLitTest {
 
     static final String WSDL_LOCATION = "../jaxws/src/main/resources/doclit/Address.wsdl";
-    static final String OUTPUT_PATH = "target/generated-wsdl2rest-doc";
+    static final String OUTPUT_PATH = "target/generated-wsdl2rest/doclit";
 
     @Test
     public void testWSDLProcessor() throws Exception {

@@ -34,16 +34,21 @@ import org.junit.Test;
 public class GenerateRpcLitTest {
 
     static final String WSDL_LOCATION = "../jaxws/src/main/resources/rpclit/Address.wsdl";
-    static final String OUTPUT_PATH = "target/generated-wsdl2rest-rpc";
+    static final String INPUT_PATH = "../jaxws/src/main/java";
+    static final String SOURCE_TYPE = "org.jboss.fuse.wsdl2rest.jaxws.rpclit.AddressBean";
+    static final String OUTPUT_PATH = "target/generated-wsdl2rest/rpclit";
 
     @Test
     public void testGenerate() throws Exception {
 
-        File wsdlFile = new File(WSDL_LOCATION);
+        URL wsdlUrl = new File(WSDL_LOCATION).toURI().toURL();
+        Path inpath = new File(INPUT_PATH).toPath();
         Path outpath = new File(OUTPUT_PATH).toPath();
         
-        Wsdl2Rest tool = new Wsdl2Rest(wsdlFile.toURI().toURL(), outpath);
-        tool.setCamelContext(Paths.get("rpclit-camel-context.xml"));
+//        Wsdl2Rest tool = new Wsdl2Rest(wsdlFile.toURI().toURL(), outpath);
+//        tool.setCamelContext(Paths.get("rpclit-camel-context.xml"));
+
+        Wsdl2Rest tool = new Wsdl2Rest(wsdlUrl, inpath, SOURCE_TYPE, outpath);
         tool.setOpenAPISpec(Paths.get("rpclit-openapi-spec.json"));
         tool.setJaxrsAddress(new URL("http://localhost:8083/myjaxrs"));
         tool.setJaxwsAddress(new URL("http://localhost:8080/rpclit"));
