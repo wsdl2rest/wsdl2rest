@@ -115,9 +115,14 @@ public abstract class RestSpecGenerator {
         for (MethodInfo method : epinfo.getMethods()) {
         	List<ParamInfo> params  = method.getParams();
 			for (ParamInfo pinfo : params) {
-				addTypeMapping(epinfo, pinfo);
+				addTypeMapping(epinfo, pinfo.getParamType());
 			}
-        	if ("document".equals(method.getStyle())) {
+			if(params.size() > 0) {
+				String returnType = method.getReturnType();
+				addTypeMapping(epinfo, returnType);
+			}
+			
+        	if (method.getStyle() == null || "document".equals(method.getStyle())) {
         		JavaMethod javaMethod = getJavaMethod(javaIntrf, method.getMethodName());
                 List<ParamInfo> wrappedParams = new ArrayList<>();
                 for (JavaParameter javaParam : javaMethod.getParameters()) {
@@ -130,20 +135,29 @@ public abstract class RestSpecGenerator {
         }
     }
     
-    private void addTypeMapping(EndpointInfo epinfo, ParamInfo pinfo) {
-        String javaType = pinfo.getParamType();
+    private boolean addTypeMapping(EndpointInfo epinfo, String javaType) {
         if(epinfo.getType(javaType) != null) {
-        	return;
+        	return true;
         }
         File javaFile = javaPath.resolve(javaType.replace('.', '/') + ".java").toFile();
         if (javaFile.exists()) {
-			final TypeInfoImpl type = new TypeInfoImpl(pinfo.getParamType());
+			final TypeInfoImpl type = new TypeInfoImpl(javaType);
 			((ClassDefinitionImpl) epinfo).addType(type);
             try (InputStream in = new FileInputStream(javaFile)) {
                 CompilationUnit cu = JavaParser.parse(in);
                 new VoidVisitorAdapter<Object>() {
                 	public void visit(FieldDeclaration field, Object arg) {
-						ElementInfo element = new ElementInfoImpl(getElementTypeMapping(field.getType().toString()), field.getVariables().get(0).toString());
+                		boolean complex = false;
+                		String elementType = field.getType().toString();
+                		if(elementType.contains("<")) {
+                			elementType = elementType.substring(0, elementType.indexOf('<'));
+                		}
+						String elementTypeMapping = getElementTypeMapping(elementType);
+						if(elementTypeMapping == null) {
+							elementTypeMapping = elementType = cu.getPackage().getName() + "." + elementType;
+							complex = addTypeMapping(epinfo, elementType);
+						}
+						ElementInfo element = new ElementInfoImpl(elementTypeMapping, field.getVariables().get(0).toString(), complex);
                 		type.addElement(element);
                 		super.visit(field, arg);
                 	}
@@ -151,7 +165,9 @@ public abstract class RestSpecGenerator {
             } catch (ParseException | IOException ex) {
                 throw new IllegalStateException(ex);
             }
+            return true;
         }
+        return false;
     }
 
 

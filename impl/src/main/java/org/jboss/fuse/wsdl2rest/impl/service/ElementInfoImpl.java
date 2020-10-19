@@ -6,10 +6,13 @@ public class ElementInfoImpl implements ElementInfo {
 
 	private final String elementType;
 	private final String elementName;
+	
+	private final boolean complex;
 
-	public ElementInfoImpl(String elementType, String elementName) {
+	public ElementInfoImpl(String elementType, String elementName, boolean complex) {
 		this.elementType = elementType;
 		this.elementName = elementName;
+		this.complex = complex;
 	}
 
 	@Override
@@ -21,8 +24,13 @@ public class ElementInfoImpl implements ElementInfo {
 	public String getElementName() {
 		return this.elementName;
 	}
+	
+	@Override
+	public boolean isComplex() {
+		return this.complex;
+	}
 
 	public String toString() {
-		return "[name=" + elementName + ",type=" + elementType + "]";
+		return "[name=" + elementName + ", type=" + elementType + ", complex=" + complex +"]";
 	}
 }

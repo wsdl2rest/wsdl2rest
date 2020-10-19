@@ -5,5 +5,7 @@ public interface ElementInfo {
 	String getElementName();
 
 	String getElementType();
+	
+	boolean isComplex();
 
 }

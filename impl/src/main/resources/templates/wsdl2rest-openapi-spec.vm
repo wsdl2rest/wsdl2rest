@@ -36,20 +36,13 @@
 				},
 				"responses": {
 					"200": {
-						"description": "successful operation",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/$schema"
-								}
-							}
-						}
+						"description": "successful operation"
 					}
 				}
 			}
 		},
 #else
-#if (!$method.returnType.endsWith('[]'))
+#if ($method.params.size() > 0)
 
 		"/$method.resources.get(0)/{id}": {
 			"$method.httpMethod.toLowerCase()": {
@@ -109,12 +102,18 @@
 				"properties": {
 #foreach( $element in $type.elements )
 					"$element.elementName": {
+#if($element.complex == 'false')
 						"type": "$element.elementType",
 #if($element.elementType == 'integer')
 						"format": "int(10)"
 #end
 #if($element.elementType == 'string')
 						"format": "varchar(200)"
+#end
+#else
+#set ( $schema = $element.elementType )
+#set ( $schema = $schema.substring($schema.lastIndexOf('.') + 1 ) )								
+						"$ref": "#/components/schemas/$schema"
 #end
 					},
 #end					

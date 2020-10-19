@@ -10,7 +10,7 @@ import org.jboss.fuse.wsdl2rest.TypeInfo;
 public class TypeInfoImpl implements TypeInfo {
 
 	private String typeName;
-	private List<ElementInfo> elements = new LinkedList<>();;
+	private List<ElementInfo> elements = new LinkedList<>();
 
 	public TypeInfoImpl(String typeName) {
 		this.typeName = typeName;
