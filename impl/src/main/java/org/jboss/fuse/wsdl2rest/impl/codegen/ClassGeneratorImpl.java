@@ -9,6 +9,8 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 
 import org.jboss.fuse.wsdl2rest.ClassGenerator;
@@ -31,57 +33,91 @@ public class ClassGeneratorImpl implements ClassGenerator {
 	protected MessageWriter msgWriter = MessageWriterFactory.getMessageWriter();
 
 	protected Path inpath;
-	protected String sourceType;
+	protected String source;
+
 	protected Path outpath;
-	
-	private CompilationUnit sourceClass;
+
+	private List<CompilationUnit> sourceClasses;
+
+	private boolean domainSplit;
+	private DomainClassGeneratorDelegate delegate;
 
 	public ClassGeneratorImpl(Path outpath) {
 		this.outpath = outpath;
 	}
 
-	public ClassGeneratorImpl(Path inpath, String sourceType, Path outpath) {
+	public ClassGeneratorImpl(Path inpath, String source, Path outpath) {
 		this.inpath = inpath;
-		this.sourceType = sourceType;
+		this.source = source;
 		this.outpath = outpath;
 		loadSourceClass();
+	}
+
+	public ClassGeneratorImpl(Path inpath, String source, Path outpath, boolean domainSplit) {
+		this(inpath, source, outpath);
+		this.domainSplit = domainSplit;
+		if (domainSplit) {
+			delegate = new DomainClassGeneratorDelegate(this);
+		}
 	}
 
 	@Override
 	public void generateClasses(List<EndpointInfo> clazzDefs) throws IOException {
 		for (EndpointInfo clazzDef : clazzDefs) {
-			
+
 			String packageName = clazzDef.getPackageName();
 			packageName = packageName.replace('.', File.separatorChar);
 
 			File packageDir = outpath.resolve(packageName).toFile();
 			packageDir.mkdirs();
 
-			File clazzFile = new File(packageDir, getClassFileName(clazzDef) + ".java");
+			File clazzFile = new File(packageDir, getClassFileName(clazzDef.getClassName()) + ".java");
 			try (PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(clazzFile)))) {
 				writePackageName(writer, clazzDef);
 				writeImports(writer, clazzDef);
 				writeServiceClass(writer, clazzDef);
 			}
 		}
+		if (this.domainSplit) {
+			delegate.writeDomianServiceClassEnd();
+		}
 	}
 
 	private void loadSourceClass() {
-		if (inpath == null || sourceType == null) {
+		if (inpath == null || source == null) {
 			return;
 		}
-		File javaFile = inpath.resolve(sourceType.replace('.', '/') + ".java").toFile();
-		if (javaFile.exists()) {
-			try (InputStream in = new FileInputStream(javaFile)) {
-				sourceClass = JavaParser.parse(in);
-			} catch (ParseException | IOException ex) {
-				throw new IllegalStateException(ex);
+
+		File sourePath = inpath.resolve(source.replace('.', '/')).toFile();
+		if (sourePath.isDirectory()) {
+			sourceClasses = new LinkedList<>();
+			File[] sourceTypes = sourePath.listFiles();
+			for (File sourceType : sourceTypes) {
+				if (sourceType.isFile()) {
+					sourceClasses.add(parse(sourceType));
+				}
+			}
+
+		} else {
+			File sourceType = inpath.resolve(source.replace('.', '/') + ".java").toFile();
+			if (sourceType.exists()) {
+				sourceClasses = Collections.singletonList(parse(sourceType));
 			}
 		}
 	}
 
-	protected String getClassFileName(EndpointInfo clazzDef) {
-		return clazzDef.getClassName();
+	private CompilationUnit parse(File javaFile) {
+		CompilationUnit sourceClass;
+		try (InputStream in = new FileInputStream(javaFile)) {
+			sourceClass = JavaParser.parse(in);
+		} catch (ParseException | IOException ex) {
+			throw new IllegalStateException(ex);
+		}
+		return sourceClass;
+	}
+
+	protected String getClassFileName(String className) {
+		return className + "Template";
 	}
 
 	protected void writePackageName(PrintWriter writer, EndpointInfo clazzDef) {
@@ -101,50 +137,52 @@ public class ClassGeneratorImpl implements ClassGenerator {
 		writer.println();
 	}
 
-	protected void writeServiceClass(PrintWriter writer, EndpointInfo clazzDef) {
+	protected void writeServiceClass(PrintWriter writer, EndpointInfo clazzDef) throws IOException {
 		if (clazzDef.getClassName() != null) {
-			writer.println("public class " + getClassFileName(clazzDef) + " {\n");
+			writer.println("public class " + getClassFileName(clazzDef.getClassName()) + " {\n");
 			writeFields(writer);
-			writeMethods(writer, clazzDef.getMethods());
+			writeMethods(writer, clazzDef);
 			writer.println("}");
 			writer.println();
 		}
 	}
 
 	protected void writeFields(PrintWriter writer) {
-		writer.println(getSourceFields());
+		String sourceFields = getSourceFields();
+		if (sourceFields.length() > 0) {
+			writer.println(sourceFields);
+		}
 	}
-	
+
 	private String getSourceFields() {
-		if(sourceClass == null) {
+		if (sourceClasses == null || sourceClasses.size() == 0) {
 			return "";
 		}
-		
 		final StringBuilder result = new StringBuilder();
-		new VoidVisitorAdapter<Object>() {
-			@Override
-			public void visit(FieldDeclaration decl, Object obj) {
-				result.append("\t").append(decl).append("\n");
-			}
-		}.visit(sourceClass, null);
+		for (CompilationUnit sourceClass : sourceClasses) {
+			new VoidVisitorAdapter<Object>() {
+				@Override
+				public void visit(FieldDeclaration decl, Object obj) {
+					result.append("\t").append(decl).append("\n");
+				}
+			}.visit(sourceClass, null);
+		}
 		return result.toString();
 	}
 
-	protected void writeMethods(PrintWriter writer, List<? extends MethodInfo> methods) {
+	protected void writeMethods(PrintWriter writer, EndpointInfo clazzDef) throws IOException {
+		List<? extends MethodInfo> methods = clazzDef.getMethods();
 		if (methods != null) {
 			for (MethodInfo minfo : methods) {
-				String retType = minfo.getReturnType();
-				writer.print("\tpublic " + (retType != null ? retType : "void") + " ");
-				writer.print(minfo.getMethodName() + "(");
-				writeParams(writer, minfo);
-				String excep = minfo.getExceptionType() != null ? (" throws " + minfo.getExceptionType()) : "";
-				writer.println(")" + excep + ";");
-				writer.println();
+				writeMethod(writer, clazzDef, minfo);
+				if (this.domainSplit) {
+					delegate.writeMethod(clazzDef, minfo);
+				}
 			}
 		}
 	}
 
-	protected void writeMethod(PrintWriter writer, MethodInfo minfo) {
+	protected void writeMethod(PrintWriter writer, EndpointInfo clazzDef, MethodInfo minfo) throws IOException {
 		if (minfo != null) {
 			String retType = minfo.getReturnType();
 			writer.print("\tpublic " + (retType != null ? retType : "void") + " ");
@@ -161,7 +199,7 @@ public class ClassGeneratorImpl implements ClassGenerator {
 		List<ParamInfo> params = minfo.getParams();
 		String[] sourceParams = getSourceMethodParams(minfo.getMethodName());
 		for (int i = 0; i < params.size(); i++) {
-			ParamInfo param = params.get(0);
+			ParamInfo param = params.get(i);
 			String type = param.getParamType();
 			String name = getParamName(param.getParamName(), i, sourceParams);
 			writer.print(i == 0 ? "" : ", ");
@@ -170,13 +208,13 @@ public class ClassGeneratorImpl implements ClassGenerator {
 	}
 
 	protected String getParamName(String name, int i, String[] sourceParams) {
-		if(sourceParams != null) {
-			return sourceParams[i];	
+		if (sourceParams != null) {
+			return sourceParams[i];
 		} else {
 			return name;
 		}
 	}
-	
+
 	protected void writeBody(PrintWriter writer, MethodInfo minfo) {
 		String body = getSourceMethodBody(minfo.getMethodName());
 		writer.println(body);
@@ -184,62 +222,67 @@ public class ClassGeneratorImpl implements ClassGenerator {
 	}
 
 	private String getSourceMethodBody(String methodName) {
-		if(sourceClass == null) {
+		if (sourceClasses == null || sourceClasses.size() == 0) {
 			return "{ }";
 		}
 		final StringBuilder result = new StringBuilder();
-		new VoidVisitorAdapter<Object>() {
-			@Override
-			public void visit(MethodDeclaration decl, Object obj) {
-				if(decl.getName().equals(methodName)) {
-					result.append(decl.getBody().toStringWithoutComments());
-				}
-			}
-		}.visit(sourceClass, null);
-		return result.toString().replace("\n", "\n\t");
-	}
-	
-	protected String[] getSourceMethodParams(String methodName) {
-		if(sourceClass == null) {
-			return null;
-		}
-		
-		final List<String> result = new ArrayList<String>();
-		new VoidVisitorAdapter<Object>() {
-			@Override
-			public void visit(MethodDeclaration decl, Object obj) {
-				if(decl.getName().equals(methodName)) {
-					for(Parameter p : decl.getParameters()) {
-						result.add(p.getId().getName());
+		for (CompilationUnit sourceClass : sourceClasses) {
+			new VoidVisitorAdapter<Object>() {
+				@Override
+				public void visit(MethodDeclaration decl, Object obj) {
+					if (decl.getName().equals(methodName)) {
+						result.append(decl.getBody().toStringWithoutComments());
 					}
 				}
-			}
-		}.visit(sourceClass, null);
+			}.visit(sourceClass, null);
+		}
+		return result.toString().replace("\n", "\n\t");
+	}
+
+	protected String[] getSourceMethodParams(String methodName) {
+		if (sourceClasses == null || sourceClasses.size() == 0) {
+			return null;
+		}
+
+		final List<String> result = new ArrayList<String>();
+		for (CompilationUnit sourceClass : sourceClasses) {
+			new VoidVisitorAdapter<Object>() {
+				@Override
+				public void visit(MethodDeclaration decl, Object obj) {
+					if (decl.getName().equals(methodName)) {
+						for (Parameter p : decl.getParameters()) {
+							result.add(p.getId().getName());
+						}
+					}
+				}
+			}.visit(sourceClass, null);
+		}
 		return result.toArray(new String[] {});
 	}
-	
-    protected String getNestedParameterType(ParamInfo pinfo) {
-        String javaType = pinfo.getParamType();
-        File javaFile = outpath.resolve(javaType.replace('.', '/') + ".java").toFile();
-        if (javaFile.exists()) {
-            try (InputStream in = new FileInputStream(javaFile)) {
-                final StringBuffer result = new StringBuffer();
-                CompilationUnit cu = JavaParser.parse(in);
-                new VoidVisitorAdapter<Object>() {
-                    @Override
-                    public void visit(MethodDeclaration decl, Object obj) {
-                        if (result.length() == 0 && decl.getName().startsWith("get")) {
-                            result.append(decl.getType().toStringWithoutComments());
-                        }
-                        super.visit(decl, obj);
-                    }
-                }.visit(cu, null);
-                javaType = result.length() > 0 ? result.toString() : null;
-            } catch (ParseException | IOException ex) {
-                throw new IllegalStateException(ex);
-            }
-        }
-        return javaType;
-    }
+
+	protected String getNestedParameterType(ParamInfo pinfo) {
+		String javaType = pinfo.getParamType();
+		File javaFile = outpath.resolve(javaType.replace('.', '/') + ".java").toFile();
+		if (javaFile.exists()) {
+			try (InputStream in = new FileInputStream(javaFile)) {
+				final StringBuffer result = new StringBuffer();
+				CompilationUnit cu = JavaParser.parse(in);
+				new VoidVisitorAdapter<Object>() {
+					@Override
+					public void visit(MethodDeclaration decl, Object obj) {
+						if (result.length() == 0
+								&& (decl.getName().startsWith("get") || decl.getName().startsWith("Get"))) {
+							result.append(decl.getType().toStringWithoutComments());
+						}
+						super.visit(decl, obj);
+					}
+				}.visit(cu, null);
+				javaType = result.length() > 0 ? result.toString() : null;
+			} catch (ParseException | IOException ex) {
+				throw new IllegalStateException(ex);
+			}
+		}
+		return javaType;
+	}
 
 }

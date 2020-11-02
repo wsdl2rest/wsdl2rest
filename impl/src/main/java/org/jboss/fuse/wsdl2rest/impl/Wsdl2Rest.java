@@ -8,12 +8,12 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cxf.tools.common.model.JavaModel;
-import org.jboss.fuse.wsdl2rest.ClassGenerator;
 import org.jboss.fuse.wsdl2rest.EndpointInfo;
 import org.jboss.fuse.wsdl2rest.ResourceMapper;
 import org.jboss.fuse.wsdl2rest.WSDLProcessor;
 import org.jboss.fuse.wsdl2rest.impl.codegen.BlueprintContextGenerator;
 import org.jboss.fuse.wsdl2rest.impl.codegen.CamelContextGenerator;
+import org.jboss.fuse.wsdl2rest.impl.codegen.ClassGeneratorImpl;
 import org.jboss.fuse.wsdl2rest.impl.codegen.JavaRestClassGenerator;
 import org.jboss.fuse.wsdl2rest.impl.codegen.JavaTypeGenerator;
 import org.jboss.fuse.wsdl2rest.impl.codegen.OpenAPISpecGenerator;
@@ -25,6 +25,8 @@ import org.jboss.fuse.wsdl2rest.util.IllegalArgumentAssertion;
 public class Wsdl2Rest {
 
     private final URL wsdlUrl;
+    private String source;
+    private Path inpath;
     private final Path outpath;
 
     private URL jaxrsAddress;
@@ -34,8 +36,6 @@ public class Wsdl2Rest {
     private Path openAPISpec;
     private Path javaOut;
     
-    private Path inpath;
-    private String sourceType;
     
     private boolean noVelocityLog = false;
     
@@ -46,14 +46,14 @@ public class Wsdl2Rest {
         this.outpath = outpath;
     }
     
-    public Wsdl2Rest(URL wsdlUrl, Path inpath, String sourceType, Path outpath) {
+    public Wsdl2Rest(URL wsdlUrl, String source, Path inpath, Path outpath) {
         IllegalArgumentAssertion.assertNotNull(wsdlUrl, "wsdlUrl");
+        IllegalArgumentAssertion.assertNotNull(source, "source");
         IllegalArgumentAssertion.assertNotNull(inpath, "inpath");
-        IllegalArgumentAssertion.assertNotNull(sourceType, "sourceType");
         IllegalArgumentAssertion.assertNotNull(outpath, "outpath");
         this.wsdlUrl = wsdlUrl;
         this.inpath = inpath;
-        this.sourceType = sourceType;
+        this.source = source;
         this.outpath = outpath;
     }
 
@@ -119,11 +119,16 @@ public class Wsdl2Rest {
         Path javaPath = effectiveJavaOut();
         JavaTypeGenerator typeGen = new JavaTypeGenerator(javaPath, wsdlUrl);
         JavaModel javaModel = typeGen.execute();
+
+        ClassGeneratorImpl classGen = null;
         
-        ClassGenerator classGen = new JavaRestClassGenerator(inpath, sourceType, javaPath);
+        classGen = new ClassGeneratorImpl(inpath, source, javaPath, true);
         classGen.generateClasses(clazzDefs);
         
-        classGen = new SpringRestClassGenerator(inpath, sourceType, javaPath);
+        classGen = new JavaRestClassGenerator(inpath, source, javaPath, true);
+        classGen.generateClasses(clazzDefs);
+        
+        classGen = new SpringRestClassGenerator(inpath, source, javaPath, true);
         classGen.generateClasses(clazzDefs);
 
 

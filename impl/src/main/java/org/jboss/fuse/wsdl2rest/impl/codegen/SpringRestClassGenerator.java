@@ -1,5 +1,6 @@
 package org.jboss.fuse.wsdl2rest.impl.codegen;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -15,13 +16,17 @@ public class SpringRestClassGenerator extends ClassGeneratorImpl {
         super(outpath);
     }
     
-    public SpringRestClassGenerator(Path inpath, String sourceType, Path outpath) {
-    	super(inpath, sourceType, outpath);
+    public SpringRestClassGenerator(Path inpath, String source, Path outpath) {
+    	super(inpath, source, outpath);
+    }
+    
+    public SpringRestClassGenerator(Path inpath, String source, Path outpath, boolean domainSplit) {
+    	super(inpath, source, outpath, domainSplit);
     }
     
     @Override
-    protected String getClassFileName(EndpointInfo clazzDef) {
-    	return super.getClassFileName(clazzDef) + "Controller";
+    protected String getClassFileName(String className) {
+    	return className + "Controller";
     }
 
     @Override
@@ -36,15 +41,14 @@ public class SpringRestClassGenerator extends ClassGeneratorImpl {
     }
 
     @Override
-    protected void writeServiceClass(PrintWriter writer, EndpointInfo clazzDef) {
+    protected void writeServiceClass(PrintWriter writer, EndpointInfo clazzDef) throws IOException {
         String pathName = clazzDef.getClassName().toLowerCase();
         writer.println("@RestController(\"/" + pathName + "/\")");
         super.writeServiceClass(writer, clazzDef);
     }
 
     @Override
-    protected void writeMethods(PrintWriter writer, List<? extends MethodInfo> methods) {
-        for (MethodInfo minfo : methods) {
+    protected void writeMethod(PrintWriter writer, EndpointInfo clazzDef, MethodInfo minfo) throws IOException {
             List<String> resources = minfo.getResources();
             if (minfo.getPreferredResource() != null) {
                 resources = new ArrayList<String>();
@@ -70,8 +74,7 @@ public class SpringRestClassGenerator extends ClassGeneratorImpl {
                 }
                 writer.println("\")");
             }
-            writeMethod(writer, minfo);
-        }
+            super.writeMethod(writer, clazzDef, minfo);
     }
 
     protected void writeParams(PrintWriter writer, MethodInfo minfo) {
