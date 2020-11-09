@@ -42,6 +42,11 @@ public class DomainClassGeneratorDelegate {
 	}
 
 	private PrintWriter getDomainWriter(EndpointInfo clazzDef, MethodInfo minfo) throws IOException {
+		if (codeGen.isSourceAvailable()) {
+			if (!codeGen.isSourceMethodAvailable(minfo.getMethodName())) {
+				return null;
+			}
+		}
 		String domain = getDomain(minfo);
 		PrintWriter writer = domainWriters.get(domain);
 		if (writer == null) {
@@ -77,7 +82,9 @@ public class DomainClassGeneratorDelegate {
 	
 	protected void writeMethod(EndpointInfo clazzDef, MethodInfo minfo) throws IOException {
 		PrintWriter domainWriter = getDomainWriter(clazzDef, minfo);
-		codeGen.writeMethod(domainWriter, clazzDef, minfo);
+		if(domainWriter != null) {
+			codeGen.writeMethod(domainWriter, clazzDef, minfo);
+		}
 	}
 	
 }

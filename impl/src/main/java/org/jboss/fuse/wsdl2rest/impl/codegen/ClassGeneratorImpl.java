@@ -10,8 +10,10 @@ import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import org.jboss.fuse.wsdl2rest.ClassGenerator;
 import org.jboss.fuse.wsdl2rest.EndpointInfo;
@@ -38,6 +40,8 @@ public class ClassGeneratorImpl implements ClassGenerator {
 	protected Path outpath;
 
 	private List<CompilationUnit> sourceClasses;
+	
+	private Map<String, MethodDeclaration> sourceMethodMap;
 
 	private boolean domainSplit;
 	private DomainClassGeneratorDelegate delegate;
@@ -87,7 +91,6 @@ public class ClassGeneratorImpl implements ClassGenerator {
 		if (inpath == null || source == null) {
 			return;
 		}
-
 		File sourePath = inpath.resolve(source.replace('.', '/')).toFile();
 		if (sourePath.isDirectory()) {
 			sourceClasses = new LinkedList<>();
@@ -104,6 +107,20 @@ public class ClassGeneratorImpl implements ClassGenerator {
 				sourceClasses = Collections.singletonList(parse(sourceType));
 			}
 		}
+		
+		mapSourceMethods();
+	}
+
+	private void mapSourceMethods() {
+		sourceMethodMap = new LinkedHashMap<>();
+		for (CompilationUnit sourceClass : sourceClasses) {
+			new VoidVisitorAdapter<Object>() {
+				@Override
+				public void visit(MethodDeclaration decl, Object obj) {
+					sourceMethodMap.put(decl.getName(), decl);
+				}
+			}.visit(sourceClass, null);
+		}		
 	}
 
 	private CompilationUnit parse(File javaFile) {
@@ -155,7 +172,7 @@ public class ClassGeneratorImpl implements ClassGenerator {
 	}
 
 	private String getSourceFields() {
-		if (sourceClasses == null || sourceClasses.size() == 0) {
+		if (!isSourceAvailable()) {
 			return "";
 		}
 		final StringBuilder result = new StringBuilder();
@@ -208,7 +225,7 @@ public class ClassGeneratorImpl implements ClassGenerator {
 	}
 
 	protected String getParamName(String name, int i, String[] sourceParams) {
-		if (sourceParams != null) {
+		if (sourceParams != null && sourceParams.length > i) {
 			return sourceParams[i];
 		} else {
 			return name;
@@ -222,42 +239,44 @@ public class ClassGeneratorImpl implements ClassGenerator {
 	}
 
 	private String getSourceMethodBody(String methodName) {
-		if (sourceClasses == null || sourceClasses.size() == 0) {
+		if(!isSourceAvailable()) {
 			return "{ }";
 		}
 		final StringBuilder result = new StringBuilder();
-		for (CompilationUnit sourceClass : sourceClasses) {
-			new VoidVisitorAdapter<Object>() {
-				@Override
-				public void visit(MethodDeclaration decl, Object obj) {
-					if (decl.getName().equals(methodName)) {
-						result.append(decl.getBody().toStringWithoutComments());
-					}
-				}
-			}.visit(sourceClass, null);
+		MethodDeclaration decl = sourceMethodMap.get(methodName);
+		if (decl != null) {
+			result.append(decl.getBody().toStringWithoutComments());
+			return result.toString().replace("\n", "\n\t");
+		} else {
+			return "{ }";			
 		}
-		return result.toString().replace("\n", "\n\t");
+
 	}
 
 	protected String[] getSourceMethodParams(String methodName) {
-		if (sourceClasses == null || sourceClasses.size() == 0) {
+		if(!isSourceAvailable()) {
 			return null;
 		}
-
 		final List<String> result = new ArrayList<String>();
-		for (CompilationUnit sourceClass : sourceClasses) {
-			new VoidVisitorAdapter<Object>() {
-				@Override
-				public void visit(MethodDeclaration decl, Object obj) {
-					if (decl.getName().equals(methodName)) {
-						for (Parameter p : decl.getParameters()) {
-							result.add(p.getId().getName());
-						}
-					}
-				}
-			}.visit(sourceClass, null);
+		MethodDeclaration decl = sourceMethodMap.get(methodName);
+		if (decl != null) {
+			for (Parameter p : decl.getParameters()) {
+				result.add(p.getId().getName());
+			}
+			return result.toArray(new String[] {});
+		} else {
+			return null;
 		}
-		return result.toArray(new String[] {});
+	}
+	
+	public boolean isSourceMethodAvailable(String methodName) {
+		MethodDeclaration decl = sourceMethodMap.get(methodName);
+		return decl != null;
+	}
+
+
+	public boolean isSourceAvailable() {
+		return sourceClasses != null && sourceClasses.size() > 0;
 	}
 
 	protected String getNestedParameterType(ParamInfo pinfo) {
